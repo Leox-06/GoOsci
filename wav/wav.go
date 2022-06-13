@@ -96,7 +96,17 @@ func (w *Wav) monoToStero(numChannels int) {
 	w.Data = newData
 }
 
-func (w *Wav) samplesToData(samples []float64) {
+func (w *Wav) ChangeSpeed(multiplier uint) {
+	var newData []byte
+	for i := 0; i < len(w.Data); i += int(w.NumChannels) {
+		for m := 0; m < int(multiplier); m++ {
+			newData = append(newData, w.Data[i], w.Data[i+1])
+		}
+	}
+	w.Data = newData
+}
+
+func (w *Wav) SamplesToData(samples []float64) {
 	for _, v := range samples {
 		sampleBits := byte(v * (math.Pow(2, float64(w.BitsPerSample)) - 1))
 		w.Data = append(w.Data, sampleBits)
@@ -118,5 +128,5 @@ func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float6
 		samples = append(samples, sample)
 	}
 
-	w.samplesToData(samples)
+	w.SamplesToData(samples)
 }
