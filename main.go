@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	w := wav.New(1, 4000, 8)
+	w := wav.New(2, 4000, 8)
 	w.GenerateTone(5, 1, 1)
 	buf := w.Encode()
 

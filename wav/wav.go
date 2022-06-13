@@ -85,14 +85,25 @@ func (w *Wav) Encode() []byte {
 	return buf.Bytes()
 }
 
-// func mon2ster(mon []byte, num) []byte {
-
-// }
+func (w *Wav) monoToStero(numChannels int) {
+	w.NumChannels = uint16(numChannels)
+	var newData []byte
+	for _, v := range w.Data {
+		for i := 0; i < numChannels; i++ {
+			newData = append(newData, v)
+		}
+	}
+	w.Data = newData
+}
 
 func (w *Wav) samplesToData(samples []float64) {
 	for _, v := range samples {
 		sampleBits := byte(v * (math.Pow(2, float64(w.BitsPerSample)) - 1))
 		w.Data = append(w.Data, sampleBits)
+	}
+
+	if w.NumChannels != 1 {
+		w.monoToStero(int(w.NumChannels))
 	}
 }
 
@@ -100,7 +111,7 @@ func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float6
 	if amplitude < 0 || amplitude > 1 {
 		panic("the amplitude must be between 0 and 1")
 	}
-	
+
 	var samples []float64
 	for i := 0.0; i < duration; i += 1 / float64(w.SampleRate) {
 		sample := (amplitude*math.Sin(i*2*math.Pi*frequency) + 1) / 2
