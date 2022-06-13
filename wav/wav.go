@@ -89,11 +89,23 @@ func (w *Wav) Encode() []byte {
 
 // }
 
+func (w *Wav) samplesToData(samples []float64) {
+	for _, v := range samples {
+		sampleBits := byte(v * (math.Pow(2, float64(w.BitsPerSample)) - 1))
+		w.Data = append(w.Data, sampleBits)
+	}
+}
+
 func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float64) {
+	if amplitude < 0 || amplitude > 1 {
+		panic("the amplitude must be between 0 and 1")
+	}
+	
 	var samples []float64
 	for i := 0.0; i < duration; i += 1 / float64(w.SampleRate) {
 		sample := (amplitude*math.Sin(i*2*math.Pi*frequency) + 1) / 2
-		// sampleBits := byte(sample * (math.Pow(2, float64(w.BitsPerSample)) - 1))
 		samples = append(samples, sample)
 	}
+
+	w.samplesToData(samples)
 }
