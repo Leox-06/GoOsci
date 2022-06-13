@@ -6,8 +6,8 @@ import (
 )
 
 func main() {
-	w := wav.New(1, 4000, 8)
-	w.Data = append(w.Data, []byte{127, 127, 127, 255, 255, 255,127, 127, 127, 0, 0, 0}...)
+	w := wav.New(1, 4000, 4)
+	w.GenerateTone(5, 1, 1)
 	buf := w.Encode()
 
 	file, _ := os.Create("test.wav")

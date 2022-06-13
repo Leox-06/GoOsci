@@ -3,6 +3,7 @@ package wav
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 )
 
 type Wav struct {
@@ -16,7 +17,7 @@ type Wav struct {
 	subchunk1Size uint32 // sum of the rest subchunk size (2+2+4+4+2+2=16)
 	audioFormat   uint16 // 1 for PCM
 	NumChannels   uint16 // 2 for stereo
-	SampleRate    uint32 // 48000 Hz (80 BB 00 00)
+	SampleRate    uint32 // Sample per second
 	byteRate      uint32 // ByteRates=(Sample Rate x Bits Per Sample x Channel Numbers)/8
 	blockAlign    uint16 // Data block size
 	BitsPerSample uint16 // 16bits
@@ -62,7 +63,7 @@ func (w *Wav) Encode() []byte {
 	w.chunkSize = uint32(36 + len(w.Data))
 	binary.Write(buf, binary.LittleEndian, w.chunkSize)
 	binary.Write(buf, binary.BigEndian, w.format)
-	
+
 	// "fmt" sub-chunk
 	binary.Write(buf, binary.BigEndian, w.subchunk1ID)
 	binary.Write(buf, binary.LittleEndian, w.subchunk1Size)
@@ -72,7 +73,7 @@ func (w *Wav) Encode() []byte {
 	binary.Write(buf, binary.LittleEndian, w.byteRate)
 	binary.Write(buf, binary.LittleEndian, w.blockAlign)
 	binary.Write(buf, binary.LittleEndian, w.BitsPerSample)
-	
+
 	// "data" sub-chunk
 	binary.Write(buf, binary.BigEndian, w.subchunk2ID)
 	w.subchunk2Size = uint32(len(w.Data))
@@ -88,12 +89,11 @@ func (w *Wav) Encode() []byte {
 
 // }
 
-// func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float64) {
-// 	var samples []byte
-// 	for i := 0.0; i < duration*float64(w.SampleRate); i += 1 / float64(w.SampleRate) {
-// 		sample := amplitude * math.Sin(i*2*math.Pi*frequency)
-// 		samples = append(samples, byte(sample))
-// 		// fmt.Printf("%f ---> %f\n", i, sample)
-// 	}
-// 	w.Data = append(w.Data, samples...)
-// }
+func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float64) {
+	var samples []float64
+	for i := 0.0; i < duration; i += 1 / float64(w.SampleRate) {
+		sample := (amplitude*math.Sin(i*2*math.Pi*frequency) + 1) / 2
+		// sampleBits := byte(sample * (math.Pow(2, float64(w.BitsPerSample)) - 1))
+		samples = append(samples, sample)
+	}
+}
