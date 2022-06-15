@@ -45,12 +45,12 @@ func (w *Wav) Encode() []byte {
 	sampleRate := uint32(w.SampleRate)
 	binary.Write(buf, binary.LittleEndian, sampleRate)
 
-	bitsPerSample := uint32(w.BitsPerSample)
+	bitsPerSample := uint16(w.BitsPerSample)
 
-	byteRate := (sampleRate * bitsPerSample * uint32(numChannels)) / 8
+	byteRate := (sampleRate * uint32(bitsPerSample) * uint32(numChannels)) / 8
 	binary.Write(buf, binary.LittleEndian, byteRate)
 
-	blockAlign := (numChannels * uint16(bitsPerSample)) / 8
+	blockAlign := (numChannels * bitsPerSample) / 8
 	binary.Write(buf, binary.LittleEndian, blockAlign)
 
 	binary.Write(buf, binary.LittleEndian, bitsPerSample)
