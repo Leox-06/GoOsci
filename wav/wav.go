@@ -8,51 +8,11 @@ import (
 )
 
 type Wav struct {
-	// "RIFF" chunk descriptor
-	chunkID   uint32 // "RIFF"
-	chunkSize uint32 // 36 + SubChunk2Size
-	format    uint32 // "WAVE"
-
-	// "fmt" sub-chunk
-	subchunk1ID   uint32 // "fmt "
-	subchunk1Size uint32 // sum of the rest subchunk size (2+2+4+4+2+2=16)
-	audioFormat   uint16 // 1 for PCM
-	NumChannels   uint16 // 2 for stereo
-	SampleRate    uint32 // Sample per second
-	byteRate      uint32 // ByteRates=(Sample Rate x Bits Per Sample x Channel Numbers)/8
-	blockAlign    uint16 // Data block size
-	BitsPerSample uint16 // 16bits
-
-	// "data" sub-chunk
-	subchunk2ID   uint32 // "data"
-	subchunk2Size uint32 // Number of bytes in the data (Sample numbers x Channel numbers x Bits per sample)/8
+	NumChannels   int // number of cannels
+	SampleRate    int // Sample per second
+	BitsPerSample int // bits per sample
 
 	Data []byte
-}
-
-func New(NumChannels uint16, SampleRate uint32, BitsPerSample uint16) Wav {
-	var w Wav
-
-	// "RIFF" chunk descriptor
-	w.chunkID = uint32(0x52494646) // "RIFF"
-	// chunkSize
-	w.format = uint32(0x57415645) // "WAVE"
-
-	// "fmt" sub-chunk
-	w.subchunk1ID = uint32(0x666d7420) // "fmt "
-	w.subchunk1Size = uint32(16)
-	w.audioFormat = uint16(1)
-	w.NumChannels = NumChannels
-	w.SampleRate = SampleRate
-	w.byteRate = (SampleRate * uint32(BitsPerSample) * uint32(NumChannels)) / 8
-	w.blockAlign = (NumChannels * BitsPerSample) / 8
-	w.BitsPerSample = BitsPerSample
-
-	// "data" sub-chunk
-	w.subchunk2ID = uint32(0x64617461) // "data"
-	// subchunk2Size
-
-	return w
 }
 
 func (w *Wav) Encode() []byte {
@@ -60,25 +20,47 @@ func (w *Wav) Encode() []byte {
 
 	// headers
 	// "RIFF" chunk descriptor
-	binary.Write(buf, binary.BigEndian, w.chunkID)
-	w.chunkSize = uint32(36 + len(w.Data))
-	binary.Write(buf, binary.LittleEndian, w.chunkSize)
-	binary.Write(buf, binary.BigEndian, w.format)
+	RIFF := uint32(0x52494646) // "RIFF"
+	binary.Write(buf, binary.BigEndian, RIFF)
+
+	chunkSize := uint32(36 + len(w.Data))
+	binary.Write(buf, binary.LittleEndian, chunkSize)
+
+	format := uint32(0x57415645) // "WAVE"
+	binary.Write(buf, binary.BigEndian, format)
 
 	// "fmt" sub-chunk
-	binary.Write(buf, binary.BigEndian, w.subchunk1ID)
-	binary.Write(buf, binary.LittleEndian, w.subchunk1Size)
-	binary.Write(buf, binary.LittleEndian, w.audioFormat)
-	binary.Write(buf, binary.LittleEndian, w.NumChannels)
-	binary.Write(buf, binary.LittleEndian, w.SampleRate)
-	binary.Write(buf, binary.LittleEndian, w.byteRate)
-	binary.Write(buf, binary.LittleEndian, w.blockAlign)
-	binary.Write(buf, binary.LittleEndian, w.BitsPerSample)
+	subchunk1ID := uint32(0x666d7420) // "fmt "
+	binary.Write(buf, binary.BigEndian, subchunk1ID)
+
+	subchunk1Size := uint32(16)
+	binary.Write(buf, binary.LittleEndian, subchunk1Size)
+
+	audioFormat := uint16(1)
+	binary.Write(buf, binary.LittleEndian, audioFormat)
+
+	numChannels := uint16(w.NumChannels)
+	binary.Write(buf, binary.LittleEndian, numChannels)
+
+	sampleRate := uint32(w.SampleRate)
+	binary.Write(buf, binary.LittleEndian, sampleRate)
+
+	bitsPerSample := uint32(w.BitsPerSample)
+
+	byteRate := (sampleRate * bitsPerSample * uint32(numChannels)) / 8
+	binary.Write(buf, binary.LittleEndian, byteRate)
+
+	blockAlign := (numChannels * uint16(bitsPerSample)) / 8
+	binary.Write(buf, binary.LittleEndian, blockAlign)
+
+	binary.Write(buf, binary.LittleEndian, bitsPerSample)
 
 	// "data" sub-chunk
-	binary.Write(buf, binary.BigEndian, w.subchunk2ID)
-	w.subchunk2Size = uint32(len(w.Data))
-	binary.Write(buf, binary.LittleEndian, w.subchunk2Size)
+	subchunk2ID := uint32(0x64617461) // "data"
+	binary.Write(buf, binary.BigEndian, subchunk2ID)
+
+	subchunk2Size := uint32(len(w.Data))
+	binary.Write(buf, binary.LittleEndian, subchunk2Size)
 
 	// data
 	binary.Write(buf, binary.LittleEndian, w.Data)
@@ -88,7 +70,7 @@ func (w *Wav) Encode() []byte {
 
 func (w *Wav) ChangeSpeed(multiplier uint) {
 	var newData []byte
-	for i := 0; i < len(w.Data); i += int(w.NumChannels) {
+	for i := 0; i < len(w.Data); i += w.NumChannels {
 		for m := 0; m < int(multiplier); m++ {
 			newData = append(newData, w.Data[i], w.Data[i+1])
 		}
@@ -98,17 +80,17 @@ func (w *Wav) ChangeSpeed(multiplier uint) {
 
 func (w *Wav) SamplesToData(samples []float64, start float64, channel ...int) {
 	for _, v := range channel {
-		if v > int(w.NumChannels) {
+		if v > w.NumChannels {
 			panic("channel doesn't exist")
 		}
 	}
 
-	w.Data = make([]byte, len(samples)*int(w.NumChannels)*8/int(w.BitsPerSample))
+	w.Data = make([]byte, len(samples)*w.NumChannels*8/w.BitsPerSample)
 	for i := 0; i < len(samples); i++ {
 		sampleBits := byte(samples[i] * (math.Pow(2, float64(w.BitsPerSample)) - 1))
-		for c := 0; c < int(w.NumChannels); c++ {
+		for c := 0; c < w.NumChannels; c++ {
 			if len(channel) > c {
-				w.Data[i*int(w.NumChannels)+channel[c]-1] = sampleBits
+				w.Data[i*w.NumChannels+channel[c]-1] = sampleBits
 			}
 		}
 	}
