@@ -3,6 +3,7 @@ package wav
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"math"
 )
 
@@ -85,17 +86,6 @@ func (w *Wav) Encode() []byte {
 	return buf.Bytes()
 }
 
-func (w *Wav) monoToStero(numChannels int) {
-	w.NumChannels = uint16(numChannels)
-	var newData []byte
-	for _, v := range w.Data {
-		for i := 0; i < numChannels; i++ {
-			newData = append(newData, v)
-		}
-	}
-	w.Data = newData
-}
-
 func (w *Wav) ChangeSpeed(multiplier uint) {
 	var newData []byte
 	for i := 0; i < len(w.Data); i += int(w.NumChannels) {
@@ -106,18 +96,25 @@ func (w *Wav) ChangeSpeed(multiplier uint) {
 	w.Data = newData
 }
 
-func (w *Wav) SamplesToData(samples []float64) {
-	for _, v := range samples {
-		sampleBits := byte(v * (math.Pow(2, float64(w.BitsPerSample)) - 1))
-		w.Data = append(w.Data, sampleBits)
+func (w *Wav) SamplesToData(samples []float64, start float64, channel ...int) {
+	for _, v := range channel {
+		if v > int(w.NumChannels) {
+			panic("channel doesn't exist")
+		}
 	}
 
-	if w.NumChannels != 1 {
-		w.monoToStero(int(w.NumChannels))
+	w.Data = make([]byte, len(samples)*int(w.NumChannels)*8/int(w.BitsPerSample))
+	for i := 0; i < len(samples); i++ {
+		sampleBits := byte(samples[i] * (math.Pow(2, float64(w.BitsPerSample)) - 1))
+		for c := 0; c < int(w.NumChannels); c++ {
+			if len(channel) > c {
+				w.Data[i*int(w.NumChannels)+channel[c]-1] = sampleBits
+			}
+		}
 	}
 }
 
-func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float64) {
+func (w *Wav) GenerateTone(frequency, amplitude, start, duration float64, channel ...int) {
 	if amplitude < 0 || amplitude > 1 {
 		panic("the amplitude must be between 0 and 1")
 	}
@@ -128,5 +125,20 @@ func (w *Wav) GenerateTone(frequency float64, amplitude float64, duration float6
 		samples = append(samples, sample)
 	}
 
-	w.SamplesToData(samples)
+	w.SamplesToData(samples, start, channel...)
+}
+
+func (w *Wav) Transition(a, b, s, start, duration float64, channel ...int) {
+	samples := []float64{a}
+	for i := 0.0; i < duration; i += 1 / float64(w.SampleRate) {
+		samples = append(samples, lerp(samples[len(samples)-1], b, s))
+	}
+	fmt.Println(samples)
+
+	w.SamplesToData(samples, start, channel...)
+}
+
+func lerp(a, b, s float64) float64 {
+	r := float64(b - a)
+	return a + (r * s)
 }
