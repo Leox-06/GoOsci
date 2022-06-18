@@ -3,8 +3,10 @@ package wav
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 	"math"
+
+	"github.com/tanema/gween"
+	"github.com/tanema/gween/ease"
 )
 
 type Wav struct {
@@ -13,6 +15,10 @@ type Wav struct {
 	BitsPerSample int // bits per sample
 
 	Data []byte
+}
+
+func New(numChannels, sampleRate, bitsPerSample int) *Wav{
+	return &Wav{NumChannels: numChannels, SampleRate: sampleRate, BitsPerSample: bitsPerSample}
 }
 
 func (w *Wav) Encode() []byte {
@@ -68,35 +74,39 @@ func (w *Wav) Encode() []byte {
 	return buf.Bytes()
 }
 
-func (w *Wav) ChangeSpeed(multiplier uint) {
+func (w *Wav) ChangeSpeed(divider uint) {
 	var newData []byte
 	for i := 0; i < len(w.Data); i += w.NumChannels {
-		for m := 0; m < int(multiplier); m++ {
+		for m := 0; m < int(divider); m++ {
 			newData = append(newData, w.Data[i], w.Data[i+1])
 		}
 	}
 	w.Data = newData
 }
 
-func (w *Wav) SamplesToData(samples []float64, start float64, channel ...int) {
-	for _, v := range channel {
+func (w *Wav) SamplesToData(samples []float64, channels ...int) {
+	for _, v := range channels {
 		if v > w.NumChannels {
 			panic("channel doesn't exist")
 		}
 	}
 
-	w.Data = make([]byte, len(samples)*w.NumChannels*8/w.BitsPerSample)
+	if len(samples) > len(w.Data) {
+		length := (len(samples) - len(w.Data)) * w.NumChannels * (w.BitsPerSample / 8)
+		w.Data = append(w.Data, make([]byte, length)...)
+	}
+
 	for i := 0; i < len(samples); i++ {
 		sampleBits := byte(samples[i] * (math.Pow(2, float64(w.BitsPerSample)) - 1))
 		for c := 0; c < w.NumChannels; c++ {
-			if len(channel) > c {
-				w.Data[i*w.NumChannels+channel[c]-1] = sampleBits
+			if len(channels) > c {
+				w.Data[i*w.NumChannels+channels[c]-1] = sampleBits
 			}
 		}
 	}
 }
 
-func (w *Wav) GenerateTone(frequency, amplitude, start, duration float64, channel ...int) {
+func (w *Wav) GenerateTone(frequency, amplitude, duration float64, channel ...int) {
 	if amplitude < 0 || amplitude > 1 {
 		panic("the amplitude must be between 0 and 1")
 	}
@@ -107,20 +117,20 @@ func (w *Wav) GenerateTone(frequency, amplitude, start, duration float64, channe
 		samples = append(samples, sample)
 	}
 
-	w.SamplesToData(samples, start, channel...)
+	w.SamplesToData(samples, channel...)
 }
 
-func (w *Wav) Transition(a, b, s, start, duration float64, channel ...int) {
-	samples := []float64{a}
-	for i := 0.0; i < duration; i += 1 / float64(w.SampleRate) {
-		samples = append(samples, lerp(samples[len(samples)-1], b, s))
+func (w *Wav) DrawLine(begin, end, duration float32, channels ...int) {
+	tween := gween.New(begin, end, duration, ease.Linear)
+
+	samples := []float64{}
+	var isFinished bool
+
+	for !isFinished {
+		var current float32
+		current, isFinished = tween.Update(1 / float32(w.SampleRate))
+		samples = append(samples, float64(current))
 	}
-	fmt.Println(samples)
 
-	w.SamplesToData(samples, start, channel...)
-}
-
-func lerp(a, b, s float64) float64 {
-	r := float64(b - a)
-	return a + (r * s)
+	w.SamplesToData(samples, channels...)
 }
